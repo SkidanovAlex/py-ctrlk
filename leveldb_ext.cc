@@ -4,11 +4,18 @@
 // The Python 2/3 compatability code was found in cporting.rst
 
 #include "leveldb_ext.h"
+#include "ctrlk/indexer.h"
 
 static PyMethodDef leveldb_extension_methods[] =
 {
 	{ (char*)"RepairDB",  (PyCFunction)pyleveldb_repair_db,  METH_VARARGS | METH_KEYWORDS, (char*)pyleveldb_repair_db_doc  },
 	{ (char*)"DestroyDB", (PyCFunction)pyleveldb_destroy_db, METH_VARARGS, (char*)pyleveldb_destroy_db_doc },
+    {"start", start, METH_VARARGS, "Fill in."},
+    {"add_file_to_parse", add_file_to_parse, METH_VARARGS, "Fill in."},
+    {"wait_on_work", wait_on_work, METH_VARARGS, "Fill in."},
+    {"extract_part", extract_part, METH_VARARGS, "Fill in."},
+    {"remove_file_symbols", remove_file_symbols, METH_VARARGS, "Fill in."},
+    {"work_queue_size", work_queue_size, METH_VARARGS, "Fill in."},
 	{NULL, NULL},
 };
 
@@ -49,14 +56,14 @@ extern "C" PyObject* PyInit_leveldb(void)
 
 #define INITERROR return
 
-extern "C" void initleveldb(void)
+extern "C" void initindexer(void)
 
 #endif
 {
 #if PY_MAJOR_VERSION >= 3
 	PyObject* leveldb_module = PyModule_Create(&leveldb_extension_def);
 #else
-	PyObject* leveldb_module = Py_InitModule3((char*)"leveldb", leveldb_extension_methods, 0);
+	PyObject* leveldb_module = Py_InitModule3((char*)"indexer", leveldb_extension_methods, 0);
 #endif
 
 	if (leveldb_module == 0)

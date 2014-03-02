@@ -2,7 +2,7 @@
 
 # Copyright (c) Arni Mar Jonsson.
 # 
-# Updates to setup.py/PyPi - Russell Power (power@cs.nyu.edu)
+# Updates to setup.py/PyPi - Nikita Shamgunov (nikita@memsql.com)
 #
 #
 # See LICENSE for details.
@@ -10,11 +10,21 @@
 import glob
 import platform
 import sys
+import os
+cxx_var = os.getenv("CXX")
+if cxx_var and 'ccache' in cxx_var:
+    os.environ["CXX"] = "g++"
+
+ld_lib_path = os.getenv("LD_LIBRARY_PATH")
+if ld_lib_path:
+    os.environ['LD_LIBRARY_PATH'] = ':'.join([d for d in ld_lib_path.split(':') if 'memsql' not in d])
+    print os.getenv("LD_LIBRARY_PATH")
 
 import ez_setup
 ez_setup.use_setuptools()
 
 from setuptools import setup, Extension
+
 
 # for local testing / recompiling; compile sources in parallel.
 FAST_COMPILE = 0
@@ -63,17 +73,18 @@ elif system == 'Linux':
       '-Wall', 
       '-DOS_LINUX',
       '-DLEVELDB_PLATFORM_POSIX',
+      '-std=c++0x'
       ]
 else:
   print >>sys.stderr, "Don't know how to compile leveldb for %s!" % system
   sys.exit(0)
 
 setup(
-	name = 'leveldb',
-	version = '0.191',
-	maintainer = 'Arni Mar Jonsson'
-	maintainer_email = 'arnimarkj@gmail.com'
-	url = 'http://code.google.com/p/py-leveldb/',
+	name = 'ctrlk',
+	version = '0.1',
+	maintainer = 'Alex Skidanov',
+	maintainer_email = 'skidanovalex@gmail.com',
+    url = 'https://github.com/SkidanovAlex/py-ctrlk',
 
 	classifiers = [
 		'Development Status :: 4 - Beta',
@@ -98,11 +109,11 @@ setup(
 	description = 'Python bindings for leveldb database library',
 
   #py_modules = ['leveldb'],
-	#packages = ['leveldb'],
+	packages = ['ctrlk'],
 	#package_dir = {'leveldb': ''},
 
 	ext_modules = [
-		Extension('leveldb',
+		Extension('ctrlk.indexer',
 			sources = [
                 # snappy
                 './snappy/snappy.cc',
@@ -153,9 +164,16 @@ setup(
 				# python stuff
 				'leveldb_ext.cc',
 				'leveldb_object.cc',
+                'ctrlk/indexer.cpp'
 			],
-			libraries = ['stdc++'],
+			libraries = ['stdc++', 'clang'],
 			extra_compile_args = extra_compile_args,
-		)
+		),
+		#Extension('ctrlk.indexer',
+		#	sources = [
+        #    ],
+		#	libraries = ['stdc++', 'clang'],
+		#	extra_compile_args = extra_compile_args,
+        #)
 	]
 )

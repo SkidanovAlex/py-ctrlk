@@ -2,10 +2,9 @@
 Build Instructions
 ------------------
 
-pip install [--user] leveldb
+pip install [--user] ctrlk
 
-**NB** If you have issues with this step, please contact Russell (power@cs.nyu.edu).
-I'm responsible for the PyPi package upload and any resulting errors.
+NB* If you have any issues with this step, please contact Nikita Shamgunov (nikita@memsql.com)
 
 Example Usage
 -------------
@@ -34,5 +33,5 @@ KeyError
 
 ---------------------
 
-Author: Arni Mar Jonsson (arnimarj@gmail.com) - http://code.google.com/p/leveldb/
+Author: Alex Skidanov (alex@memsql.com) - https://github.com/SkidanovAlex/CtrlK
 
