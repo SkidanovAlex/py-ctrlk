@@ -87,7 +87,7 @@ setup(
     url = 'https://github.com/SkidanovAlex/py-ctrlk',
 
 	classifiers = [
-		'Development Status :: 4 - Beta',
+		'Development Status :: 3 - Alpha',
 		'Environment :: Other Environment',
 		'Intended Audience :: Developers',
 		'License :: OSI Approved :: BSD License',
@@ -102,13 +102,13 @@ setup(
 		'Programming Language :: Python :: 3.1',
 		'Programming Language :: Python :: 3.2',
 		'Programming Language :: Python :: 3.3',
-		'Topic :: Database',
 		'Topic :: Software Development :: Libraries'
 	],
 
-	description = 'Python bindings for leveldb database library',
+	description = 'C++ source code indexer',
 
-  #py_modules = ['leveldb'],
+    #py_modules = ['tornado', 'request', 'python-dev'],
+    install_requires = ['tornado', 'requests'],
 	packages = ['ctrlk'],
 	#package_dir = {'leveldb': ''},
 
