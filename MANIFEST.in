@@ -10,5 +10,7 @@ include leveldb/port/*.cc
 include leveldb/*.cc
 include snappy/*.h
 include snappy/*.cc
+include ctrlk/*.h
+include ctrlk/*.cpp
 include *.cc
 include *.h

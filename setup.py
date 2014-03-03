@@ -81,7 +81,7 @@ else:
 
 setup(
 	name = 'ctrlk',
-	version = '0.1',
+	version = '0.1.2',
 	maintainer = 'Alex Skidanov',
 	maintainer_email = 'skidanovalex@gmail.com',
     url = 'https://github.com/SkidanovAlex/py-ctrlk',
@@ -108,7 +108,7 @@ setup(
 	description = 'C++ source code indexer',
 
     #py_modules = ['tornado', 'request', 'python-dev'],
-    install_requires = ['tornado', 'requests'],
+    install_requires = ['tornado', 'requests', 'ez_setup'],
 	packages = ['ctrlk'],
 	#package_dir = {'leveldb': ''},
 
