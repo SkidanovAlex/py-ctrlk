@@ -1,0 +1,4 @@
+build/
+dist/
+ctrlk.egg-info/
+*.pyc

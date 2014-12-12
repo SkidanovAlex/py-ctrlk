@@ -54,12 +54,17 @@ common_flags = [
       '-I./leveldb/include',
       '-I./leveldb',
       '-I./snappy',
+      '-I./clang-c/include',
       '-I.',
       '-fno-builtin-memcmp',
       '-O2',
       '-fPIC',
       '-DNDEBUG',
       '-DSNAPPY',
+]
+
+extra_link_args = [
+      '-L./clang-c/lib',
 ]
 
 if system == 'Darwin':
@@ -168,6 +173,7 @@ setup(
 			],
 			libraries = ['stdc++', 'clang'],
 			extra_compile_args = extra_compile_args,
+			extra_link_args = extra_link_args,
 		),
 		#Extension('ctrlk.indexer',
 		#	sources = [

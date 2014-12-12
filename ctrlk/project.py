@@ -1,7 +1,10 @@
-from clang.cindex import Config, TranslationUnitLoadError, Index
+from clang.cindex import Index, Config, TranslationUnitLoadError, CursorKind, File, SourceLocation, Cursor, TranslationUnit
 from ctrlk import indexer
 import multiprocessing
+import threading
 import os
+import time
+import re
 
 from ctrlk import search
 
@@ -9,6 +12,51 @@ try:
     import simplejson as json
 except ImportError:
     import json
+
+def GetCursorForFile(tu, fileName):
+    cursor = tu.cursor
+    if str(cursor.extent.start.file) == str(cursor.extent.end.file) and os.path.abspath(str(cursor.extent.start.file)) == fileName:
+        return cursor
+
+    # TODO
+    return None
+
+def RemoveNonAscii(text):
+    return re.sub(r'[^\x00-\x7F]+',' ', text)
+
+def SafeSpelling(ch):
+    try:
+        return ch.spelling
+    except ValueError:
+        return None
+
+def PopulateScopeNames(cursor, scopeNames, scopeDepths, depth = 0):
+    if cursor is None:
+        return
+    for ch in cursor.get_children():
+        if ch.extent and ch.extent.start and ch.extent.end and cursor.extent and cursor.extent.end:
+            if str(ch.extent.end.file) == str(cursor.extent.end.file):
+                if SafeSpelling(ch) is not None:
+                    for i in range(ch.extent.start.line, ch.extent.end.line + 1):
+                        while len(scopeNames) <= i:
+                            scopeNames.append('')
+                            scopeDepths.append(-1)
+
+                        if scopeDepths[i] < depth: 
+                            scopeDepths[i] = depth
+                            if scopeNames[i] != '': scopeNames[i] += '::'
+                            scopeNames[i] += ch.spelling
+
+                PopulateScopeNames(ch, scopeNames, scopeDepths, depth + 1)
+
+def ParseCurrentFileThread(project):
+    while True:
+        with project.c_parse_lock:
+            if len(project.c_parse_queue) == 0:
+                continue
+            work = project.c_parse_queue[0]
+            project.c_parse_queue.pop(0)
+        project.parse_current_file_internal(work[0], work[1], work[2])
 
 class Project(object):
     def __init__(self, library_path, project_root, n_workers=None):
@@ -50,6 +98,15 @@ class Project(object):
 
         self._leveldb_connection = None
         indexer.start(self.leveldb_connection, n_workers)
+
+        self.current_file_tus = {}
+        self.current_file_expire = {}
+        self.current_file_scopes = {}
+
+        self.c_parse_queue = []
+        self.c_parse_lock = threading.Lock()
+
+        threading.Thread(target=ParseCurrentFileThread, args=(self,)).start()
 
     @property
     def leveldb_connection(self):
@@ -96,9 +153,75 @@ class Project(object):
 
         return origin_file, compile_command, mod_time
 
+    def cleanup_expired_tus(self):
+        now = time.time()
+        with self.c_parse_lock:
+            for file_name, expires in self.current_file_expire.iteritems():
+                if expires < now:
+                    self.current_file_tus.pop(file_name, None)
+                    self.current_file_expire.pop(file_name, None)
+                    self.current_file_scopes.pop(file_name, None)
+
     def parse_file(self, file_name):
         origin_file, compile_command, mod_time = self.get_file_args(file_name)
         indexer.add_file_to_parse(origin_file, compile_command, mod_time)
+
+    def parse_current_file(self, command, file_name, content):
+        with self.c_parse_lock:
+            self.c_parse_queue.append([command, file_name, content])
+
+    # this is called from a different thread
+    def parse_current_file_internal(self, command, file_name, content):
+        self.cleanup_expired_tus()
+
+        index = Index.create()
+        tu = index.parse(None, json.loads(command), unsaved_files=[(file_name, RemoveNonAscii(content))], options = TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD)
+        with self.c_parse_lock:
+            self.current_file_tus[file_name] = tu
+            self.current_file_expire[file_name] = time.time() + 3600 * 10
+
+        scopeNames = []
+        scopeDepths = []
+        PopulateScopeNames(GetCursorForFile(tu, os.path.abspath(file_name)), scopeNames, scopeDepths)
+
+        with self.c_parse_lock:
+            self.current_file_scopes[file_name] = scopeNames
+
+    def unload_current_file(self, file_name):
+        with self.c_parse_lock:
+            self.current_file_tus.pop(file_name, None)
+            self.current_file_expire.pop(file_name, None)
+            self.current_file_scopes.pop(file_name, None)
+    
+    def get_usr_under_cursor(self, file_name, line, col):
+        with self.c_parse_lock:
+            if file_name not in self.current_file_tus:
+                return ""
+            tu = self.current_file_tus[file_name]
+        f = File.from_name(tu, file_name)
+        loc = SourceLocation.from_position(tu, f, int(line), int(col))
+        cursor = Cursor.from_location(tu, loc)
+
+        while cursor is not None and (not cursor.referenced or not cursor.referenced.get_usr()):
+            nextCursor = cursor.lexical_parent
+            if nextCursor is not None and nextCursor == cursor:
+                return ""
+            cursor = nextCursor
+        if cursor is None:
+            return ""
+
+        cursor = cursor.referenced
+        if cursor is None:
+            return ""
+
+        return {'usr': cursor.get_usr(), 'file': str(cursor.location.file), 'line': cursor.location.line, 'column': cursor.location.column}
+
+    def get_current_scope_str(self, file_name, line):
+        line = int(line)
+        with self.c_parse_lock:
+            if file_name in self.current_file_scopes and line < len(self.current_file_scopes[file_name]):
+                return self.current_file_scopes[file_name][line]
+        return "(no scope)"
 
     def scan_and_index(self):
         project_files = self.compilation_db

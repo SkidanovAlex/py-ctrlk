@@ -10,7 +10,7 @@ from ctrlk import client_api
 from ctrlk import project
 from ctrlk import search
 
-g_project = None
+g_projects = {}
 g_last_request_time = time.time()
 
 def get_absolute_path():
@@ -27,6 +27,10 @@ class MyRequestHandler(tornado.web.RequestHandler):
     def prepare(self):
         global g_last_request_time
         g_last_request_time = time.time()
+    def get_project(self):
+        project_root = self.get_argument("project_root")
+        abs_project_root = os.path.abspath(project_root)
+        return g_projects[abs_project_root]
 
 class PingHandler(MyRequestHandler):
     def get(self):
@@ -34,60 +38,82 @@ class PingHandler(MyRequestHandler):
 
 class RegisterHandler(MyRequestHandler):
     def get(self):
-        global g_project
+        global g_projects
 
         library_path = self.get_argument("library_path")
         project_root = self.get_argument("project_root")
 
         abs_project_root = os.path.abspath(project_root)
 
-        if g_project and g_project.project_root not in abs_project_root:
-            self.set_status(400)
-            self.write("Already running with a different project: %s" % (g_project.project_root))
-            return
-
-        if g_project is None:
-            g_project = project.Project(library_path, project_root)
+        if abs_project_root not in g_projects:
+            g_projects[abs_project_root] = project.Project(library_path, project_root)
 
 class ParseHandler(MyRequestHandler):
     def get(self):
         file_name = self.get_argument("file_name", None)
         if file_name:
-            g_project.parse_file(file_name)
+            self.get_project().parse_file(file_name)
         else:
-            g_project.scan_and_index()
+            self.get_project().scan_and_index()
 
 class QueueSizeHandler(MyRequestHandler):
     def get(self):
-        self.write(json.dumps(g_project.work_queue_size()))
+        self.write(json.dumps(self.get_project().work_queue_size()))
 
 class LevelDBSearchHandler(MyRequestHandler):
     def get(self):
         starts_with = self.get_argument('starts_with')
-        ret = [x for x in search.leveldb_range_iter(g_project.leveldb_connection, starts_with)]
+        ret = [x for x in search.leveldb_range_iter(self.get_project().leveldb_connection, starts_with)]
         self.write(json.dumps(ret))
 
 class MatchHandler(MyRequestHandler):
     def get(self):
         prefix = self.get_argument('prefix')
         limit = int(self.get_argument('limit'))
-        ret = search.get_items_matching_pattern(g_project.leveldb_connection, prefix, limit)
+        ret = search.get_items_matching_pattern(self.get_project().leveldb_connection, prefix, limit)
         self.write(json.dumps(ret))
 
 class BuiltinHeaderPathHandler(MyRequestHandler):
     def get(self):
-        self.write(json.dumps(g_project.builtin_header_path))
+        self.write(json.dumps(self.get_project().builtin_header_path))
 
 class FileArgsHandler(MyRequestHandler):
     def get(self):
         file_name = self.get_argument('file_name')
 
-        origin_file, compile_command, mod_time = g_project.get_file_args(file_name)
+        origin_file, compile_command, mod_time = self.get_project().get_file_args(file_name)
         self.write(json.dumps(compile_command))
 
+class ParseCurrentFileHandler(MyRequestHandler):
+    def post(self):
+        command = self.get_argument('command')
+        file_name = self.get_argument('file_name')
+        content = self.get_argument('content')
+        self.get_project().parse_current_file(command, file_name, content)
+
+class UnloadCurrentFileHandler(MyRequestHandler):
+    def get(self):
+        file_name = self.get_argument('file_name')
+        self.get_project().unload_current_file(file_name)
+
+class GetUsrUnderCursorHandler(MyRequestHandler):
+    def get(self):
+        file_name = self.get_argument('file_name')
+        row = self.get_argument('row')
+        col = self.get_argument('col')
+        ret = self.get_project().get_usr_under_cursor(file_name, row, col)
+        self.write(json.dumps(ret))
+
+class GetCurrentScopeStrHandler(MyRequestHandler):
+    def get(self):
+        file_name = self.get_argument('file_name')
+        row = self.get_argument('row')
+        ret = self.get_project().get_current_scope_str(file_name, row)
+        self.write(json.dumps(ret))
+
 def sigint_handler(signum, frame):
-    if g_project:
-        g_project.wait_on_work()
+    for v in g_projects.itervalues():
+        v.wait_on_work()
     os.kill(os.getpid(), signal.SIGTERM)
 
 application = tornado.web.Application([
@@ -99,6 +125,10 @@ application = tornado.web.Application([
     (r"/match", MatchHandler),
     (r"/builtin_header_path", BuiltinHeaderPathHandler),
     (r"/file_args", FileArgsHandler),
+    (r"/parse_current_file", ParseCurrentFileHandler),
+    (r"/unload_current_file", UnloadCurrentFileHandler),
+    (r"/get_usr_under_cursor", GetUsrUnderCursorHandler),
+    (r"/get_current_scope_str", GetCurrentScopeStrHandler),
 ])
 
 def launch_server(port, suicide_seconds):
