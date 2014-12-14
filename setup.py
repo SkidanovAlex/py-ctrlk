@@ -86,7 +86,7 @@ else:
 
 setup(
 	name = 'ctrlk',
-	version = '0.1.3',
+	version = '0.1.4',
 	maintainer = 'Alex Skidanov',
 	maintainer_email = 'skidanovalex@gmail.com',
     url = 'https://github.com/SkidanovAlex/py-ctrlk',

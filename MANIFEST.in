@@ -12,5 +12,7 @@ include snappy/*.h
 include snappy/*.cc
 include ctrlk/*.h
 include ctrlk/*.cpp
+include clang-c/include/clang-c/*.h
+include clang-c/lib/*.so
 include *.cc
 include *.h
