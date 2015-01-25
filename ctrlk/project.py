@@ -53,6 +53,7 @@ def ParseCurrentFileThread(project):
     while True:
         with project.c_parse_lock:
             if len(project.c_parse_queue) == 0:
+                project.c_parse_cond.wait()
                 continue
             work = project.c_parse_queue[0]
             project.c_parse_queue.pop(0)
@@ -105,6 +106,7 @@ class Project(object):
 
         self.c_parse_queue = []
         self.c_parse_lock = threading.Lock()
+        self.c_parse_cond = threading.Condition(self.c_parse_lock)
 
         threading.Thread(target=ParseCurrentFileThread, args=(self,)).start()
 
@@ -169,6 +171,7 @@ class Project(object):
     def parse_current_file(self, command, file_name, content):
         with self.c_parse_lock:
             self.c_parse_queue.append([command, file_name, content])
+            self.c_parse_cond.notify()
 
     # this is called from a different thread
     def parse_current_file_internal(self, command, file_name, content):
