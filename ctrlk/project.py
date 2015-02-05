@@ -5,6 +5,7 @@ import threading
 import os
 import time
 import re
+import sys
 
 from ctrlk import search
 
@@ -119,9 +120,13 @@ class Project(object):
     @property
     def compilation_db(self):
         if self._compilation_db is None \
-                or get_file_modtime(self.compile_commands_path) > self._compilation_db_modtime:
-            with open(self.compile_commands_path, 'r') as f:
-                raw = json.load(f)
+                or (os.path.exists(self.compile_commands_path) and get_file_modtime(self.compile_commands_path) > self._compilation_db_modtime):
+            try:
+                with open(self.compile_commands_path, 'r') as f:
+                    raw = json.load(f)
+            except IOError as e:
+                print >>sys.stderr, "Unable to open compile commands path %s: %s" % (self.compile_commands_path, e)
+
             self._compilation_db = {}
             for entry in raw:
                 if 'command' in entry and 'file' in entry:
@@ -165,7 +170,15 @@ class Project(object):
                     self.current_file_scopes.pop(file_name, None)
 
     def parse_file(self, file_name):
-        origin_file, compile_command, mod_time = self.get_file_args(file_name)
+        try:
+            origin_file, compile_command, mod_time = self.get_file_args(file_name)
+        except OSError as e:
+            if e.errno != 2:
+                raise
+            else:
+                print >>sys.stderr, "Unable to stat() %s: %s" % (file_name, e)
+                return
+
         indexer.add_file_to_parse(origin_file, compile_command, mod_time)
 
     def parse_current_file(self, command, file_name, content):
